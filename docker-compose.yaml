@@ -1,0 +1,71 @@
+version: '3.5'
+
+services:
+  zookeeper:
+    image: bitnami/zookeeper:3.9.2
+    volumes:
+      - 'zookeeper-data:/bitnami/zookeeper/data'
+      - 'zookeeper-log:/bitnami/zookeeper/log'
+    ports:
+      - "2181:2181"
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+      - ZOO_SERVER_ID=1
+      - ZOO_LOG_DIR="/tmp/logs"
+    networks:
+      - fragrances-network
+
+  kafka:
+    image: bitnami/kafka:3.5.2
+    user: root
+    volumes:
+      - /path/to/kafka-persistence:/bitnami/kafka
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_CFG_NODE_ID=1
+      - KAFKA_CFG_BROKER_ID=1
+      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+      - KAFKA_LOG_DIR="/tmp/logs"
+      # Listeners
+      - KAFKA_CFG_LISTENERS=INTERNAL_LISTENER://:9092,EXTERNAL_LISTENER://:29092
+      - KAFKA_CFG_ADVERTISED_LISTENERS=INTERNAL_LISTENER://host.docker.internal:9092,EXTERNAL_LISTENER://localhost:9094
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=INTERNAL_LISTENER:PLAINTEXT,EXTERNAL_LISTENER:PLAINTEXT
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=INTERNAL_LISTENER
+    networks:
+      - fragrances-network
+    depends_on:
+      - zookeeper
+      
+  akhq:
+    image: tchiotludo/akhq:0.25.1
+    environment:
+      AKHQ_CONFIGURATION: |
+        akhq:
+          connections:
+            docker-kafka-server:
+              properties:
+                bootstrap.servers: "kafka:9092"
+    ports:
+      - '7080:8080'
+    networks:
+      - fragrances-network
+    links:
+      - kafka
+    depends_on:
+      - kafka
+
+volumes:
+  zookeeper-data:
+    driver: local
+  zookeeper-log:
+    driver: local
+  kafka-data:
+    driver: local
+
+networks:
+  fragrances-network:
+    name: fragrances-network
+    driver: bridge
